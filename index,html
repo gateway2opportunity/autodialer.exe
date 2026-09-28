@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Kut Millz Auto Dialer</title>
+<script src="https://sdk.twilio.com/js/client/v1.14/twilio.min.js"></script>
+<style>
+:root{--bg:#0a0d16;--card:#131a2b;--line:#222c45;--tx:#e9edf7;--mu:#8592b0;--ok:#2ecc71;--bad:#ff5468}
+*{box-sizing:border-box}
+body{-webkit-text-size-adjust:100%;padding:0 env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);margin:0;background:radial-gradient(1100px 600px at 10% -10%,#1b2650 0,transparent 60%),var(--bg);color:var(--tx);font:14px system-ui,sans-serif}
+nav{display:flex;align-items:center;gap:6px;padding:12px 18px;border-bottom:1px solid var(--line);flex-wrap:wrap;position:sticky;top:0;background:#0a0d16ee;-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);z-index:5}
+.logo{font-weight:800;font-size:18px;background:linear-gradient(90deg,#ffb400,#ff5e8a);-webkit-background-clip:text;background-clip:text;color:transparent;margin-right:14px}
+.sp{flex:1}main{max-width:1200px;margin:auto;padding:18px}
+.tab{display:none}.tab.on{display:block}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:16px}@media(max-width:850px){.g2{grid-template-columns:1fr}}
+.card{background:var(--card);border:1px solid var(--line);border-top:3px solid var(--c);border-radius:12px;padding:16px;margin-bottom:16px}
+.card h3{margin:0 0 12px;color:var(--c);font-size:13px;text-transform:uppercase;letter-spacing:.08em}
+input,select,textarea{width:100%;padding:9px;margin-bottom:8px;background:#0a0d16;border:1px solid var(--line);border-radius:8px;color:var(--tx);font:inherit;font-size:16px;-webkit-appearance:none;appearance:none}
+textarea{min-height:90px}select{background-image:none}input[type=checkbox]{width:auto;margin-right:6px}
+label{font-size:12px;color:var(--mu);display:block;margin-bottom:3px}small,.mu{color:var(--mu)}
+button{min-height:42px;touch-action:manipulation;-webkit-tap-highlight-color:transparent;padding:9px 14px;border:0;border-radius:8px;background:var(--line);color:var(--tx);cursor:pointer;font-weight:600}
+button:hover{filter:brightness(1.25)}
+button.tb{background:transparent;color:var(--mu)}button.tb.on{background:var(--c);color:#000}
+button.c{background:var(--c);color:#000}button.r{background:var(--bad)}button.g{background:var(--ok);color:#000}
+.row{display:flex;gap:8px;flex-wrap:wrap}.row>*{flex:1}
+.pill{padding:3px 10px;border-radius:99px;background:var(--line);font-size:12px;white-space:nowrap}
+.Answered,.Interested,.ok{background:var(--ok);color:#000}.NoAnswer,.Voicemail{background:#4a5470}.Calling{background:#3ea6ff;color:#000}
+.DNC,.NotInterested,.bad{background:var(--bad)}.Callback,.Sent{background:#ffb400;color:#000}
+#now{font-size:22px;font-weight:800}#stat{color:var(--mu);margin:4px 0 6px}#stats{font-size:12px;color:#ffb400;margin-bottom:12px}
+#scriptView{white-space:pre-wrap;background:#0a0d16;border:1px solid #a678ff;border-radius:8px;padding:12px;min-height:120px;max-height:320px;overflow:auto;margin-bottom:8px;font-size:15px;line-height:1.55}
+.tw{max-height:480px;overflow:auto}table{width:100%;border-collapse:collapse}
+th,td{padding:8px;text-align:left;border-bottom:1px solid var(--line);font-size:13px}th{position:sticky;top:0;background:var(--card);color:var(--mu)}
+tr.cur td{background:#2a2410}
+#gate{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:99}
+#gate .card{width:330px;text-align:center;--c:#ffb400}
+</style>
+</head>
+<body>
+<div id="gate"><div class="card">
+  <h3 style="font-size:20px;text-transform:none;letter-spacing:0">Kut Millz Auto Dialer</h3>
+  <p class="mu">Enter your access key</p>
+  <input id="key" type="password" placeholder="Access key" autofocus>
+  <button class="c" style="width:100%" onclick="unlock()">Unlock</button>
+  <p id="gerr" style="color:var(--bad)"></p>
+</div></div>
+
+<nav>
+  <span class="logo">KUT MILLZ AUTO DIALER</span>
+  <button class="tb on" data-t="dialer" style="--c:#ffb400" onclick="tab('dialer')">Dialer</button>
+  <button class="tb" data-t="leads" style="--c:#3ea6ff" onclick="tab('leads')">Leads</button>
+  <button class="tb" data-t="script" style="--c:#a678ff" onclick="tab('script')">Script</button>
+  <button class="tb" data-t="setup" style="--c:#21d4b4" onclick="tab('setup')">Setup</button>
+  <button class="tb" data-t="data" style="--c:#ff5e8a" onclick="tab('data')">Data</button>
+  <span class="sp"></span>
+  <span class="pill" id="micp">Mic: unknown</span> <span class="pill" id="dev">Twilio: offline</span>
+</nav>
+
+<main>
+<!-- DIALER -->
+<section class="tab on" id="t-dialer" style="--c:#ffb400">
+ <div class="g2">
+  <div>
+   <div class="card"><h3>Dialer</h3>
+    <div id="now">Idle</div><div id="stat">Load leads and connect Twilio to start.</div><div id="stats"></div>
+    <div class="row">
+      <button class="g" onclick="startAuto()">▶ Start</button><button onclick="dialNext()">Dial Next</button>
+      <button onclick="pauseAuto()">⏸ Pause</button><button class="r" onclick="hangup()">Hang Up</button>
+    </div>
+    <div class="row" style="margin-top:8px"><button onclick="toggleMute()" id="mbtn">Mute</button><button onclick="skipWait()">Skip Wait</button></div>
+   </div>
+   <div class="card"><h3>Disposition</h3>
+    <div class="row">
+      <button onclick="dispo('Interested')">Interested</button><button onclick="dispo('Callback')">Callback</button>
+      <button onclick="dispo('Voicemail')">Voicemail</button><button onclick="dispo('NotInterested')">Not Interested</button><button onclick="dispo('DNC')">DNC</button>
+    </div>
+   </div>
+  </div>
+  <div>
+   <div class="card" style="--c:#a678ff"><h3>Live Script</h3><div id="scriptView"></div>
+    <label>Call notes</label><textarea id="notes" oninput="noteIn(this.value)" placeholder="Notes for this lead..."></textarea>
+   </div>
+  </div>
+ </div>
+</section>
+
+<!-- LEADS -->
+<section class="tab" id="t-leads" style="--c:#3ea6ff">
+ <div class="card"><h3>Upload Leads</h3>
+  <input type="file" id="file" accept=".csv,.txt,text/csv,text/plain" onchange="loadLeads(this.files[0])">
+  <small>CSV with a header row. Needs a phone column (phone / number / mobile / cell). Name column optional. Extra columns become script fields.</small>
+ </div>
+ <div class="card"><div class="row" style="align-items:center"><h3 style="margin:0;flex:2" id="cnt">Leads (0)</h3>
+  <button onclick="recycle()">Recycle No Answers</button><button class="c" onclick="exportCSV()">Export CSV</button></div>
+  <div class="tw" style="margin-top:12px"><table><thead><tr><th>#</th><th>Name</th><th>Phone</th><th>Status</th></tr></thead><tbody id="tb"></tbody></table></div>
+ </div>
+</section>
+
+<!-- SCRIPT -->
+<section class="tab" id="t-script" style="--c:#a678ff">
+ <div class="card"><h3>Call Script</h3>
+  <input type="file" accept=".txt,.md,.html,text/plain" onchange="loadScript(this.files[0])">
+  <textarea id="scriptTxt" style="min-height:260px" oninput="showScript();save()" placeholder="Upload or paste your script. Use {{name}}, {{phone}} or any CSV column like {{city}}."></textarea>
+  <small>Shows on the Dialer tab, filled in for each lead.</small>
+ </div>
+</section>
+
+<!-- SETUP -->
+<section class="tab" id="t-setup" style="--c:#21d4b4">
+ <div class="g2">
+  <div>
+   <div class="card"><h3>Twilio</h3>
+    <label>Account SID</label><input id="sid" data-c placeholder="ACxxxxxxxx" autocomplete="off">
+    <label>API Key SID</label><input id="ksid" data-c placeholder="SKxxxxxxxx" autocomplete="off">
+    <label>API Key Secret</label><input id="ksec" data-c type="password" autocomplete="off">
+    <label>TwiML App SID</label><input id="app" data-c placeholder="APxxxxxxxx" autocomplete="off">
+    <label>Your Twilio phone number (caller ID)</label><input id="cid" data-s placeholder="+15551234567">
+    <label style="margin:6px 0"><input type="checkbox" id="rem" onchange="save()">Remember these credentials on this device</label>
+    <button class="c" style="width:100%" onclick="connectTwilio()">Connect</button>
+   </div>
+   <div class="card"><h3>Microphone</h3>
+    <p class="mu">Live mode needs your mic so you can talk to people who answer.</p>
+    <button class="c" style="width:100%" onclick="askMic()">Enable Microphone</button>
+   </div>
+  </div>
+  <div>
+   <div class="card"><h3>Dial Mode</h3>
+    <label>Mode</label>
+    <select id="mode" data-s onchange="save()"><option value="live">Live: I talk through my mic</option><option value="auto">Auto: speak a message and/or forward answered calls</option></select>
+    <label>Message to speak when they pick up (Auto mode, optional)</label>
+    <textarea id="msg" data-s oninput="save()" placeholder="Hi {{name}}, this is Kut Millz calling about..."></textarea>
+    <label>Forward answered calls to this number (Auto mode, optional)</label>
+    <input id="fwd" data-s placeholder="+15559876543" oninput="save()">
+    <label style="margin:6px 0"><input type="checkbox" id="amd" data-s onchange="save()">Skip voicemail machines (Twilio charges a small extra fee)</label>
+    <small>Auto mode needs the Twilio Function. Live mode works with any voice URL that dials {{To}}.</small>
+   </div>
+   <div class="card" style="--c:#ff9f43"><h3>Voice</h3>
+    <label>Voice for spoken messages (Auto mode)</label>
+    <select id="voice" data-s onchange="save()">
+     <optgroup label="Girl voices"><option value="Polly.Joanna-Neural" data-g="f">Joanna (natural)</option><option value="Polly.Salli" data-g="f">Salli</option><option value="Polly.Kendra" data-g="f">Kendra</option><option value="Polly.Ivy" data-g="f">Ivy</option></optgroup>
+     <optgroup label="Boy voices"><option value="Polly.Matthew-Neural" data-g="m">Matthew (natural)</option><option value="Polly.Joey" data-g="m">Joey</option><option value="Polly.Brian" data-g="m">Brian (British)</option></optgroup>
+    </select>
+    <div class="row"><button class="c" onclick="testBrowserVoice()">Preview here</button><button onclick="testCall()">Test call to my phone</button></div>
+    <small>Preview uses your device's voice, so it only approximates. The test call plays the real voice through Twilio (uses your forward number, or asks for one).</small>
+   </div>
+   <div class="card" style="--c:#f368e0"><h3>Auto Disposition</h3>
+    <label style="margin:6px 0"><input type="checkbox" id="autoDispo" data-s onchange="save()">Set disposition from words I type in call notes</label>
+    <label style="margin:6px 0"><input type="checkbox" id="voiceCmd" data-s onchange="voiceToggle()">Voice commands: set disposition from words I say</label>
+    <small>Words it catches: <b>interested</b>, <b>call back</b>, <b>voicemail</b>, <b>not interested</b>, <b>DNC / do not call</b>. Voice commands only hear your mic, so they also fire if you say those words to the lead. Works best on desktop Chrome; on phones it may clash with the call audio and switch itself off.</small>
+   </div>
+   <div class="card"><h3>Pacing</h3>
+    <label>Pace mode</label>
+    <select id="pm" data-s onchange="save()"><option value="timed">Timed: dial next after the delay</option><option value="confirm">Confirm: wait for me to click Dial Next</option></select>
+    <label>Seconds between calls</label><input id="delay" data-s type="number" value="10" min="0" oninput="save()">
+    <label>Ring timeout (seconds)</label><input id="ring" data-s type="number" value="25" min="10" oninput="save()">
+    <label>Max calls this session (0 = no limit)</label><input id="maxc" data-s type="number" value="0" min="0" oninput="save()">
+    <label>Default country code</label><input id="cc" data-s value="+1" oninput="save()">
+   </div>
+  </div>
+ </div>
+</section>
+
+<!-- DATA -->
+<section class="tab" id="t-data" style="--c:#ff5e8a">
+ <div class="g2">
+  <div class="card"><h3>Backup</h3>
+   <p class="mu">Everything auto-saves in this browser on this device: leads, statuses, notes, script and settings. Twilio credentials save only if you tick the box in Setup.</p>
+   <div class="row"><button class="c" onclick="exportBackup()">Export Backup (.json)</button><button onclick="$('imp').click()">Import Backup</button></div>
+   <input type="file" id="imp" accept=".json,application/json" style="display:none" onchange="importBackup(this.files[0])">
+  </div>
+  <div class="card"><h3>Danger Zone</h3>
+   <p class="mu">Wipes saved leads, script, settings and credentials from this device.</p>
+   <button class="r" style="width:100%" onclick="wipe()">Clear All Data</button>
+  </div>
+ </div>
+</section>
+</main>
+
+<script>
+// SHA-256 of the access key; the key itself is not stored anywhere
+const KEY_HASH="37c5b9165381c9e05e11cea635d6a57bd9e5c7d31dc8b19b885ac729ddc1379b";
+const $=id=>document.getElementById(id);
+const hex=b=>[...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,"0")).join("");
+async function unlock(){
+  const h=hex(await crypto.subtle.digest("SHA-256",new TextEncoder().encode($("key").value.trim())));
+  if(h===KEY_HASH)$("gate").remove();else{$("gerr").textContent="Wrong key";$("key").value=""}
+}
+$("key").addEventListener("keydown",e=>{if(e.key==="Enter")unlock()});
+function tab(n){document.querySelectorAll(".tab").forEach(e=>e.classList.toggle("on",e.id==="t-"+n));document.querySelectorAll(".tb").forEach(e=>e.classList.toggle("on",e.dataset.t===n))}
+
+let leads=[],idx=-1,dialed=0,auto=false,conn=null,ready=false,answered=false,muted=false,timer=null,ringT=null,micS="unknown";
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const setStat=t=>$("stat").textContent=t;
+const cls=s=>s.replace(/ /g,"");
+
+// ---------- Save / load (this device) ----------
+const LS="kutmillz.v1";
+function save(){
+  try{
+    const f={},c={};
+    document.querySelectorAll("[data-s]").forEach(e=>f[e.id]=e.type==="checkbox"?e.checked:e.value);
+    const d={leads,idx,dialed,script:$("scriptTxt").value,f,rem:$("rem").checked};
+    if(d.rem){document.querySelectorAll("[data-c]").forEach(e=>c[e.id]=e.value);d.c=c}
+    localStorage.setItem(LS,JSON.stringify(d));
+  }catch(e){}
+}
+function applyData(d,withCreds){
+  leads=(d.leads||[]).map(l=>({...l,status:l.status==="Calling"?"Pending":l.status}));idx=d.idx??-1;dialed=d.dialed||0;
+  $("scriptTxt").value=d.script||"";
+  Object.entries(d.f||{}).forEach(([k,v])=>{const e=$(k);if(!e)return;if(e.type==="checkbox")e.checked=!!v;else e.value=v});
+  if(withCreds){$("rem").checked=!!d.rem;Object.entries(d.c||{}).forEach(([k,v])=>{if($(k))$(k).value=v})}
+  render();showScript();stats();
+}
+function loadSaved(){try{const d=JSON.parse(localStorage.getItem(LS)||"null");if(d)applyData(d,true)}catch(e){}}
+function exportBackup(){
+  const f={};document.querySelectorAll("[data-s]").forEach(e=>f[e.id]=e.type==="checkbox"?e.checked:e.value);
+  dl(new Blob([JSON.stringify({leads,idx,dialed,script:$("scriptTxt").value,f},null,1)],{type:"application/json"}),"kut-millz-backup.json");
+}
+function importBackup(file){if(!file)return;const r=new FileReader();r.onload=()=>{try{applyData(JSON.parse(r.result),false);save();alert("Backup imported.")}catch(e){alert("Bad backup file.")}};r.readAsText(file)}
+function wipe(){if(confirm("Delete everything saved on this device?")){localStorage.removeItem(LS);location.reload()}}
+function dl(blob,name){const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();a.remove()}
+
+// ---------- Mic ----------
+function setMic(s){micS=s;const p=$("micp");p.textContent="Mic: "+(s==="granted"?"ready":s);p.className="pill "+(s==="granted"?"ok":s==="denied"?"bad":"")}
+async function askMic(){if(!window.isSecureContext||!navigator.mediaDevices){setMic("needs https");return alert("Phones only allow the mic on an https link. Host this file (Firebase Hosting or Netlify Drop) and open that link.")}try{const s=await navigator.mediaDevices.getUserMedia({audio:true});s.getTracks().forEach(t=>t.stop());setMic("granted")}catch(e){setMic("denied");alert("Mic blocked. Allow it in your browser's site settings.")}}
+(async()=>{try{const p=await navigator.permissions.query({name:"microphone"});setMic(p.state);p.onchange=()=>setMic(p.state)}catch(e){}})();
+
+// ---------- Twilio ----------
+const b64u=s=>btoa(typeof s==="string"?s:String.fromCharCode(...new Uint8Array(s))).replace(/=/g,"").replace(/\+/g,"-").replace(/\//g,"_");
+async function makeToken(){
+  const now=Math.floor(Date.now()/1000),ks=$("ksid").value.trim();
+  const head={alg:"HS256",typ:"JWT",cty:"twilio-fpa;v=1"};
+  const pay={jti:ks+"-"+now,iss:ks,sub:$("sid").value.trim(),iat:now,exp:now+3600,grants:{identity:"kutmillz",voice:{outgoing:{application_sid:$("app").value.trim()}}}};
+  const data=b64u(JSON.stringify(head))+"."+b64u(JSON.stringify(pay));
+  const k=await crypto.subtle.importKey("raw",new TextEncoder().encode($("ksec").value.trim()),{name:"HMAC",hash:"SHA-256"},false,["sign"]);
+  return data+"."+b64u(await crypto.subtle.sign("HMAC",k,new TextEncoder().encode(data)));
+}
+async function connectTwilio(){
+  if(!$("sid").value||!$("ksid").value||!$("ksec").value||!$("app").value)return alert("Fill in all four Twilio fields.");
+  try{
+    if($("mode").value==="live")await askMic();
+    Twilio.Device.setup(await makeToken(),{codecPreferences:["opus","pcmu"],enableRingingState:true});
+    Twilio.Device.on("ready",()=>{ready=true;$("dev").textContent="Twilio: connected";$("dev").className="pill ok";setStat("Twilio connected.")});
+    Twilio.Device.on("error",e=>{setStat("Twilio error: "+e.message);$("dev").textContent="Twilio: error";$("dev").className="pill bad"});
+    Twilio.Device.on("disconnect",onEnd);
+    setInterval(async()=>{try{Twilio.Device.updateToken(await makeToken())}catch(e){}},50*60*1000);
+    save();
+  }catch(e){alert("Couldn't connect: "+e.message)}
+}
+
+// ---------- Leads ----------
+function parseCSV(t){
+  const rows=[];let r=[],c="",q=false;
+  for(let i=0;i<t.length;i++){const ch=t[i];
+    if(q){if(ch=='"'&&t[i+1]=='"'){c+='"';i++}else if(ch=='"')q=false;else c+=ch}
+    else if(ch=='"')q=true;else if(ch==","){r.push(c);c=""}
+    else if(ch=="\n"||ch=="\r"){if(ch=="\r"&&t[i+1]=="\n")i++;r.push(c);rows.push(r);r=[];c=""}
+    else c+=ch}
+  if(c||r.length){r.push(c);rows.push(r)}
+  return rows.filter(x=>x.some(v=>v.trim()));
+}
+function loadLeads(f){
+  if(!f)return;const rd=new FileReader();
+  rd.onload=()=>{
+    const rows=parseCSV(rd.result);if(!rows.length)return alert("Empty file");
+    const hd=rows[0].map(h=>h.trim().toLowerCase());
+    let pi=hd.findIndex(h=>/phone|number|mobile|cell/.test(h)),ni=hd.findIndex(h=>/name/.test(h)),body=rows.slice(1);
+    const hasHdr=pi>=0;if(!hasHdr){pi=0;ni=-1;body=rows}
+    leads=body.map(r=>{const d={};if(hasHdr)hd.forEach((h,i)=>d[h]=(r[i]||"").trim());return{name:ni>=0?(r[ni]||"").trim():"",phone:(r[pi]||"").trim(),status:"Pending",notes:"",data:d}}).filter(l=>l.phone);
+    idx=-1;dialed=0;render();stats();showScript();save();setStat(leads.length+" leads loaded.");tab("dialer");
+  };
+  rd.readAsText(f);
+}
+const fmt=p=>{const d=p.replace(/[^\d+]/g,"");return d.startsWith("+")?d:$("cc").value.trim()+d.replace(/^0+/,"")};
+function render(){
+  $("cnt").textContent="Leads ("+leads.length+")";
+  $("tb").innerHTML=leads.map((l,i)=>`<tr class="${i===idx?"cur":""}"><td>${i+1}</td><td>${esc(l.name)}</td><td>${esc(l.phone)}</td><td><span class="pill ${cls(l.status)}">${l.status}</span></td></tr>`).join("");
+}
+
+// ---------- Script ----------
+const merge=(t,l)=>t.replace(/\{\{\s*(\w+)\s*\}\}/g,(m,k)=>{k=k.toLowerCase();return k==="name"?(l.name||"there"):k==="phone"?l.phone:(l.data[k]||"")});
+function showScript(){
+  const l=leads[idx]||leads[0]||{name:"",phone:"",data:{}};
+  $("scriptView").textContent=merge($("scriptTxt").value,l);
+  $("notes").value=leads[idx]?leads[idx].notes||"":"";
+}
+function loadScript(f){if(!f)return;const r=new FileReader();r.onload=()=>{$("scriptTxt").value=r.result;showScript();save()};r.readAsText(f)}
+
+// ---------- Dialing ----------
+async function dialNext(){
+  if(!ready)return alert("Connect Twilio first (Setup tab).");
+  if(conn)return;
+  const mode=$("mode").value;
+  if(mode==="live"&&micS!=="granted"){await askMic();if(micS!=="granted")return}
+  clearTimeout(timer);
+  let n=idx+1;while(n<leads.length&&leads[n].status!=="Pending")n++;
+  if(n>=leads.length){auto=false;stopVoiceCmd();$("now").textContent="Done";return setStat("No more pending leads.")}
+  const mx=+$("maxc").value||0;if(mx&&dialed>=mx){auto=false;return setStat("Call limit reached ("+mx+").")}
+  idx=n;dialed++;const l=leads[idx];l.status="Calling";answered=false;render();showScript();stats();save();
+  $("now").textContent=(l.name||"Unknown")+" | "+l.phone;setStat(mode==="auto"?"Placing call (auto mode)...":"Calling...");
+  conn=Twilio.Device.connect({To:fmt(l.phone),Mode:mode,CallerId:$("cid").value.trim(),Ring:$("ring").value,Msg:merge($("msg").value,l),Fwd:$("fwd").value.trim(),Voice:$("voice").value,Amd:$("amd").checked?"1":"0"});if(mode==="live"&&$("voiceCmd").checked)startVoiceCmd();
+  conn.on("ringing",()=>setStat("Ringing..."));
+  conn.on("accept",()=>{answered=true;setStat(mode==="auto"?"Call sent":"Connected")});
+  clearTimeout(ringT);
+  if(mode==="live")ringT=setTimeout(()=>{if(conn&&!answered)hangup()},(+$("ring").value||25)*1000);
+}
+function onEnd(){
+  clearTimeout(ringT);
+  if(testing){testing=false;conn=null;return setStat("Test call sent. Your phone should ring.")}
+  const l=leads[idx];
+  if(l&&l.status==="Calling")l.status=$("mode").value==="auto"?"Sent":answered?"Answered":"No Answer";
+  conn=null;muted=false;$("mbtn").textContent="Mute";render();stats();save();
+  if(auto){
+    if($("pm").value==="confirm")return setStat("Call ended. Set disposition, then click Dial Next.");
+    let s=+$("delay").value||0;
+    const tick=()=>{if(!auto)return;if(s<=0)return dialNext();setStat("Next call in "+s+"s (set disposition, or Skip Wait)");s--;timer=setTimeout(tick,1000)};
+    tick();
+  }else setStat("Call ended.");
+}
+function startAuto(){auto=true;keepAwake();dialNext()}
+function pauseAuto(){auto=false;clearTimeout(timer);stopVoiceCmd();try{wl&&wl.release()}catch(e){}setStat("Paused.")}
+function hangup(){Twilio.Device.disconnectAll()}
+function toggleMute(){if(!conn)return;muted=!muted;conn.mute(muted);$("mbtn").textContent=muted?"Unmute":"Mute"}
+function skipWait(){if(auto&&!conn){clearTimeout(timer);dialNext()}}
+function dispo(s){if(idx<0||!leads[idx])return;leads[idx].status=s;render();stats();save()}
+function recycle(){leads.forEach(l=>{if(l.status==="No Answer")l.status="Pending"});idx=-1;render();stats();save();setStat("No-answer leads are back in the queue.")}
+function stats(){
+  const c=s=>leads.filter(l=>l.status===s).length;
+  const a=["Answered","Interested","Callback","NotInterested"].reduce((t,s)=>t+c(s),0);
+  $("stats").textContent="Dialed "+dialed+"  |  Answered "+a+"  |  No answer "+c("No Answer")+"  |  Sent "+c("Sent")+"  |  Pending "+c("Pending");
+}
+function exportCSV(){
+  const q=v=>'"'+String(v).replace(/"/g,'""')+'"';
+  const cols=[...new Set(leads.flatMap(l=>Object.keys(l.data)))];
+  const csv=["name","phone","status","notes",...cols].join(",")+"\n"+leads.map(l=>[l.name,l.phone,l.status,l.notes,...cols.map(c=>l.data[c]||"")].map(q).join(",")).join("\n");
+  dl(new Blob([csv],{type:"text/csv"}),"kut-millz-results.csv");
+}
+let testing=false,rec=null,wl=null;
+async function keepAwake(){try{if("wakeLock"in navigator)wl=await navigator.wakeLock.request("screen")}catch(e){}}
+document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible"&&auto)keepAwake()});
+
+function detect(t){
+  t=t.toLowerCase();
+  if(/\b(dnc|do not call|don'?t call|stop calling|remove me|take me off)\b/.test(t))return"DNC";
+  if(/not interested|no thanks|no thank you|not for me/.test(t))return"NotInterested";
+  if(/voice ?mail|leave a message|mailbox|after the tone/.test(t))return"Voicemail";
+  if(/call ?back|call me (back|later)|try (me )?later/.test(t))return"Callback";
+  if(/interested|sounds good|tell me more|sign me up/.test(t))return"Interested";
+  return null;
+}
+function noteIn(v){
+  const l=leads[idx];if(!l)return;l.notes=v;
+  if($("autoDispo").checked){const s=detect(v);if(s&&s!==l.det){l.det=s;dispo(s);setStat("Auto disposition: "+s.replace("NotInterested","Not Interested"));return}}
+  save();
+}
+function startVoiceCmd(){
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){$("voiceCmd").checked=false;return setStat("Voice commands aren't supported in this browser.")}
+  if(rec)return;
+  const r=rec=new SR();r.continuous=true;r.interimResults=false;r.lang="en-US";
+  r.onresult=e=>{const t=e.results[e.results.length-1][0].transcript,s=detect(t);if(s&&idx>=0){dispo(s);setStat('Heard "'+t.trim()+'" -> '+s.replace("NotInterested","Not Interested"))}};
+  r.onend=()=>{if(rec===r&&$("voiceCmd").checked)try{r.start()}catch(e){}};
+  r.onerror=e=>{if(e.error==="not-allowed"||e.error==="service-not-allowed"||e.error==="audio-capture"){$("voiceCmd").checked=false;save();stopVoiceCmd();setStat("Voice commands switched off (mic busy or blocked).")}};
+  try{r.start()}catch(e){}
+}
+function stopVoiceCmd(){if(rec){const r=rec;rec=null;try{r.stop()}catch(e){}}}
+function voiceToggle(){save();if(!$("voiceCmd").checked)stopVoiceCmd()}
+
+function testBrowserVoice(){
+  if(!("speechSynthesis"in window))return alert("This browser can't preview voices. Use the test call instead.");
+  const g=$("voice").selectedOptions[0].dataset.g,l=leads[0]||{name:"",phone:"",data:{}};
+  const t=merge($("msg").value.trim()||"Hi {{name}}, this is a test of the voice from Kut Millz.",l);
+  speechSynthesis.cancel();
+  const u=new SpeechSynthesisUtterance(t);
+  const re=g==="f"?/female|samantha|victoria|karen|moira|tessa|zira|hazel|susan|joanna|salli|kendra|ivy|aria|jenny/i:/\bmale\b|daniel|alex|fred|david|mark|james|guy|matthew|joey|brian|aaron|rishi/i;
+  const v=speechSynthesis.getVoices().filter(v=>/^en/i.test(v.lang)).find(v=>re.test(v.name));
+  if(v)u.voice=v;else u.pitch=g==="f"?1.25:0.75;
+  speechSynthesis.speak(u);
+}
+function testCall(){
+  if(!ready)return alert("Connect Twilio first.");
+  if(conn)return alert("A call is already in progress.");
+  const to=$("fwd").value.trim()||prompt("Phone number to call for the test:");
+  if(!to)return;
+  testing=true;
+  conn=Twilio.Device.connect({To:fmt(to),Mode:"auto",CallerId:$("cid").value.trim(),Ring:"25",Msg:"Hi, this is a test of the "+$("voice").selectedOptions[0].text+" voice from Kut Millz.",Fwd:"",Voice:$("voice").value,Amd:"0"});
+  setStat("Test call going out...");
+}
+loadSaved();
+</script>
+</body>
+</html>
